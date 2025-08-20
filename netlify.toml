@@ -1,0 +1,3 @@
+[build]
+  command = "./build-deploy-info.sh && npm run build"
+  publish = "dist"
