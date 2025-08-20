@@ -1,3 +1,4 @@
+# netlify.toml
 [build]
-  command = "build-deploy-info.sh"
+  command = "./build-deploy-info.sh"
   publish = "."
