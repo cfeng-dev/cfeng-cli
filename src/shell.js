@@ -1,172 +1,239 @@
 /* global $, localStorage */
 
+// Put caret (text cursor) at the end of a contenteditable element
+function setCaretToEnd(el) {
+    // Safety: if element is not found, skip
+    if (!el) return;
+    el.focus();
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false); // move to end
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+}
+
 class Shell {
-  constructor(term, commands) {
-    this.commands = commands;
-    this.setupListeners(term);
-    this.term = term;
+    constructor(term, commands) {
+        // Store dependencies
+        this.commands = commands;
+        this.term = term;
 
-    localStorage.directory = 'root';
-    localStorage.history = JSON.stringify('');
-    localStorage.historyIndex = -1;
-    localStorage.inHistory = false;
+        // Initialize state in localStorage
+        // Use array for history; flags as string for consistency with comparisons
+        localStorage.directory = "root";
+        localStorage.history = JSON.stringify([]);
+        localStorage.historyIndex = -1;
+        localStorage.inHistory = "false";
+        localStorage.goingThroughHistory = "false";
 
-    $('.input').focus();
-  }
+        // Wire up DOM event listeners
+        this.setupListeners(term);
 
-  setupListeners(term) {
-    $('#terminal').mouseup(() => $('.input').last().focus());
+        // Focus input on boot
+        $(".input").focus();
+    }
 
-    term.addEventListener('keyup', (evt) => {
-      const keyUp = 38;
-      const keyDown = 40;
-      const key = evt.keyCode;
+    setupListeners(term) {
+        // Keep focus in the last input when clicking terminal area
+        $("#terminal").on("mouseup", () => $(".input").last().focus());
 
-      if ([keyUp, keyDown].includes(key)) {
-        let history = localStorage.history;
-        history = history ? Object.values(JSON.parse(history)) : [];
+        // Handle Up/Down for history navigation
+        term.addEventListener("keyup", (evt) => {
+            const keyUp = 38;
+            const keyDown = 40;
+            const key = evt.keyCode;
 
-        if (key === keyUp) {
-          if (localStorage.historyIndex >= 0) {
-            if (localStorage.inHistory == 'false') {
-              localStorage.inHistory = true;
+            if (key === keyUp || key === keyDown) {
+                let history = localStorage.history ? JSON.parse(localStorage.history) : [];
+
+                if (key === keyUp) {
+                    // Navigate backward through history
+                    if (localStorage.historyIndex >= 0) {
+                        if (localStorage.inHistory === "false") {
+                            localStorage.inHistory = "true";
+                        }
+                        // Prevent repetition of the very last command when starting traversal
+                        if (Number(localStorage.historyIndex) === history.length - 1 && history.length !== 1) {
+                            localStorage.historyIndex = String(Number(localStorage.historyIndex) - 1);
+                        }
+                        const idx = Number(localStorage.historyIndex);
+                        const text = history[idx] ?? "";
+
+                        // Insert text and move caret to end
+                        const $inp = $(".input").last();
+                        $inp.text(text);
+                        setCaretToEnd($inp.get(0));
+
+                        if (idx !== 0) {
+                            localStorage.historyIndex = String(idx - 1);
+                        }
+                    }
+                } else if (key === keyDown) {
+                    // Navigate forward through history
+                    if (localStorage.inHistory === "true" && Number(localStorage.historyIndex) < history.length) {
+                        let ret = "";
+                        let idx = Number(localStorage.historyIndex);
+
+                        if (idx > 0) {
+                            ret = history[idx];
+                            if (idx !== history.length - 1) {
+                                localStorage.historyIndex = String(idx + 1);
+                            }
+                        } else if (idx === 0 && history.length > 1) {
+                            ret = history[1];
+                            localStorage.historyIndex = String(history.length !== 2 ? 2 : 1);
+                        }
+
+                        // Insert text and move caret to end
+                        const $inp = $(".input").last();
+                        $inp.text(ret || "");
+                        setCaretToEnd($inp.get(0));
+                    }
+                }
+
+                // Prevent default arrow scrolling inside contenteditable
+                evt.preventDefault();
             }
-            // Prevent repetition of last command while traversing history.
-            if (localStorage.historyIndex == history.length - 1 && history.length !== 1) {
-              localStorage.historyIndex -= 1;
-            }
-            $('.input')
-              .last()
-              .html(`${history[localStorage.historyIndex]}<span class="end"><span>`);
-            if (localStorage.historyIndex != 0) localStorage.historyIndex -= 1;
-          }
-        } else if (key === keyDown) {
-          if (localStorage.inHistory == 'true' && localStorage.historyIndex < history.length) {
-            let ret;
+        });
 
-            if (localStorage.historyIndex > 0) {
-              ret = `${history[localStorage.historyIndex]}<span class="end"><span>`;
-              if (localStorage.historyIndex != history.length - 1) {
-                localStorage.historyIndex = Number(localStorage.historyIndex) + 1;
-              }
-              // Prevent repetition of first command while traversing history.
-            } else if (localStorage.historyIndex == 0 && history.length > 1) {
-              ret = `${history[1]}<span class="end"><span>`;
-              localStorage.historyIndex = history.length !== 2 ? 2 : 1;
+        // Handle special keys: Tab, Esc, Backspace/Delete, Ctrl+U, Ctrl+K
+        term.addEventListener("keydown", (evt) => {
+            // 9: Tab, 27: Esc, 8: Backspace, 46: Delete
+            if (evt.keyCode === 9) {
+                // Prevent focus jump on Tab
+                evt.preventDefault();
+            } else if (evt.keyCode === 27) {
+                // Toggle fullscreen on Esc
+                $(".terminal-window").toggleClass("fullscreen");
+            } else if (evt.keyCode === 8 || evt.keyCode === 46) {
+                // Reset history pointer when editing
+                this.resetHistoryIndex();
             }
-            $('.input').last().html(ret);
-          }
+
+            // Ctrl+U (clear line before cursor)
+            if (evt.ctrlKey && evt.key.toLowerCase() === "u") {
+                evt.preventDefault();
+                const $inp = $(".input").last();
+                const sel = window.getSelection();
+                const range = sel.getRangeAt(0);
+                const cursorPos = range.startOffset;
+
+                const text = $inp.text();
+                // Remove everything before cursor
+                $inp.text(text.slice(cursorPos));
+
+                // Move caret to beginning
+                const node = $inp.get(0).firstChild || $inp.get(0);
+                sel.collapse(node, 0);
+            }
+
+            // Ctrl+K (clear line after cursor)
+            if (evt.ctrlKey && evt.key.toLowerCase() === "k") {
+                evt.preventDefault();
+                const $inp = $(".input").last();
+                const sel = window.getSelection();
+                const range = sel.getRangeAt(0);
+                const cursorPos = range.startOffset;
+
+                const text = $inp.text();
+                // Remove everything after cursor
+                $inp.text(text.slice(0, cursorPos));
+
+                // Move caret to end
+                const node = $inp.get(0).firstChild || $inp.get(0);
+                sel.collapse(node, cursorPos);
+            }
+        });
+
+        // Handle Enter for command execution
+        term.addEventListener("keypress", (evt) => {
+            // Skip for control keys in Firefox (arrow/tab)
+            if (![9, 27, 37, 38, 39, 40].includes(evt.keyCode)) {
+                // Any printable input resets history traversal state
+                this.resetHistoryIndex();
+            }
+
+            if (evt.keyCode === 13) {
+                const prompt = evt.target;
+                // Split into command + arg (single-arg model; simple and matches current handlers)
+                const parts = prompt.textContent.trim().split(/\s+/);
+                const cmd = (parts[0] || "").toLowerCase();
+                const arg = parts.slice(1).join(" ").trim(); // allow multi-word args if needed later
+
+                if (cmd === "clear") {
+                    this.updateHistory(cmd);
+                    this.clearConsole();
+                } else if (cmd && Object.prototype.hasOwnProperty.call(this.commands, cmd)) {
+                    this.runCommand(cmd, arg);
+                    this.resetPrompt(term, prompt);
+                    $(".root").last().text(localStorage.directory);
+                } else {
+                    this.term.innerHTML += "Error: command not recognized";
+                    this.resetPrompt(term, prompt);
+                }
+                evt.preventDefault();
+            }
+        });
+    }
+
+    runCommand(cmd, args) {
+        // Store the executed command in history
+        const command = args ? `${cmd} ${args}` : cmd;
+        this.updateHistory(command);
+
+        // Execute and render output if any
+        const output = this.commands[cmd](args);
+        if (output) {
+            this.term.innerHTML += output;
         }
-        evt.preventDefault();
-        $('.end').focus();
-      }
-    });
+    }
 
-    term.addEventListener('keydown', (evt) => {
-      // Keydown legend:
-      // 9 -> Tab key.
-      // 27 -> Escape key.
-      // 8 -> Backspace key.
-      // 46 -> Delete key.
+    resetPrompt(term, prompt) {
+        // Clone the current prompt block and freeze the previous input
+        const newPrompt = prompt.parentNode.cloneNode(true);
+        prompt.setAttribute("contenteditable", false);
 
-      if (evt.keyCode === 9) {
-        evt.preventDefault();
-      } else if (evt.keyCode === 27) {
-        $('.terminal-window').toggleClass('fullscreen');
-      } else if (evt.keyCode === 8 || evt.keyCode === 46) {
-        this.resetHistoryIndex();
-      }
-    });
-
-    term.addEventListener('keypress', (evt) => {
-      // Exclude these keys for Firefox, as they're fired for arrow/tab keypresses.
-      if (![9, 27, 37, 38, 39, 40].includes(evt.keyCode)) {
-        // If input keys are pressed then resetHistoryIndex() is called.
-        this.resetHistoryIndex();
-      }
-      if (evt.keyCode === 13) {
-        const prompt = evt.target;
-        const input = prompt.textContent.trim().split(' ');
-        const cmd = input[0].toLowerCase();
-        const args = input[1];
-
-        if (cmd === 'clear') {
-          this.updateHistory(cmd);
-          this.clearConsole();
-        } else if (cmd && cmd in this.commands) {
-          this.runCommand(cmd, args);
-          this.resetPrompt(term, prompt);
-          $('.root').last().html(localStorage.directory);
-        } else {
-          this.term.innerHTML += 'Error: command not recognized';
-          this.resetPrompt(term, prompt);
+        if (this.prompt) {
+            // Allow overriding the prompt label if needed
+            newPrompt.querySelector(".prompt").textContent = this.prompt;
         }
-        evt.preventDefault();
-      }
-    });
-  }
 
-  runCommand(cmd, args) {
-    const command = args ? `${cmd} ${args}` : cmd;
-    this.updateHistory(command);
-
-    const output = this.commands[cmd](args);
-    if (output) {
-      this.term.innerHTML += output;
-    }
-  }
-
-  resetPrompt(term, prompt) {
-    const newPrompt = prompt.parentNode.cloneNode(true);
-    prompt.setAttribute('contenteditable', false);
-
-    if (this.prompt) {
-      newPrompt.querySelector('.prompt').textContent = this.prompt;
+        term.appendChild(newPrompt);
+        const input = newPrompt.querySelector(".input");
+        input.innerHTML = "";
+        input.focus();
     }
 
-    term.appendChild(newPrompt);
-    newPrompt.querySelector('.input').innerHTML = '';
-    newPrompt.querySelector('.input').focus();
-  }
-
-  resetHistoryIndex() {
-    let history = localStorage.history;
-
-    history = history ? Object.values(JSON.parse(history)) : [];
-    if (localStorage.goingThroughHistory == true) {
-      localStorage.goingThroughHistory = false;
+    resetHistoryIndex() {
+        // Reset the pointer to the latest command
+        let history = localStorage.history ? JSON.parse(localStorage.history) : [];
+        if (localStorage.goingThroughHistory === "true") {
+            localStorage.goingThroughHistory = "false";
+        }
+        localStorage.historyIndex = history.length ? String(history.length - 1) : String(-1);
     }
 
-    if (history.length == 0) {
-      localStorage.historyIndex = -1;
-    } else {
-      localStorage.historyIndex = history.length - 1 > 0 ? history.length - 1 : 0;
+    updateHistory(command) {
+        // Append command to history array and update index pointer
+        let history = localStorage.history ? JSON.parse(localStorage.history) : [];
+        history.push(command);
+        localStorage.history = JSON.stringify(history);
+        localStorage.historyIndex = String(history.length - 1);
     }
-  }
 
-  updateHistory(command) {
-    let history = localStorage.history;
-    history = history ? Object.values(JSON.parse(history)) : [];
-
-    history.push(command);
-    localStorage.history = JSON.stringify(history);
-    localStorage.historyIndex = history.length - 1;
-  }
-
-  clearConsole() {
-    const getDirectory = () => localStorage.directory;
-    const dir = getDirectory();
-
-    $('#terminal').html(
-      `<p class="hidden">
-          <span class="prompt">
-            <span class="root">${dir}</span>
-            <span class="tick">$</span>
-          </span>
-          <span contenteditable="true" class="input" spellcheck="false"></span>
-        </p>`,
-    );
-
-    $('.input').focus();
-  }
+    clearConsole() {
+        // Reset the terminal output to a fresh prompt while keeping the current directory
+        const dir = localStorage.directory;
+        $("#terminal").html(
+            `<p class="hidden">
+        <span class="prompt">
+          <span class="root">${dir}</span>
+          <span class="tick">$</span>
+        </span>
+        <span contenteditable="true" class="input" spellcheck="false"></span>
+      </p>`
+        );
+        $(".input").focus();
+    }
 }
