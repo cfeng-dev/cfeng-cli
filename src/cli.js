@@ -152,24 +152,52 @@ commands.cat = (filename) => {
 
 // ---------- last reboot command (deploy timestamp) ----------
 
-// Simple date formatter
+// Simple date formatter (kept in case you need it elsewhere)
 function formatDate(d) {
-    // Format as YYYY-MM-DD HH:mm:ss
     const pad = (n) => String(n).padStart(2, "0");
-    const yyyy = d.getFullYear();
-    const mm = pad(d.getMonth() + 1);
-    const dd = pad(d.getDate());
-    const hh = pad(d.getHours());
-    const mi = pad(d.getMinutes());
-    const ss = pad(d.getSeconds());
-    return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+// Format a Date in the user's local timezone
+function formatLocal(dt) {
+    const opts = {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+        timeZoneName: "short",
+    };
+    return new Intl.DateTimeFormat(undefined, opts).format(dt);
+}
+
+// Parse "YYYY-MM-DD HH:mm:ss UTC" reliably and return a Date in local tz
+function parseDeployUtcString(s) {
+    // Strict regex for the expected format
+    const m = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2}) UTC$/.exec(s);
+    if (!m) return null;
+    const [, y, mo, d, h, mi, se] = m.map(Number);
+    // Construct as UTC then return a local Date
+    return new Date(Date.UTC(y, mo - 1, d, h, mi, se));
 }
 
 commands.last = (arg) => {
+    // Supports "last reboot"
     if (arg && arg.toLowerCase() === "reboot") {
         if (window.lastDeploy) {
-            const commit = (window.lastCommit && window.lastCommit.slice(0, 7)) || "unknown";
-            return `Last site deploy: ${window.lastDeploy} (commit ${commit})`;
+            const commit = (window.lastCommit || "").slice(0, 7) || "unknown";
+
+            // Robust parse of "YYYY-MM-DD HH:mm:ss UTC"
+            const dt = parseDeployUtcString(window.lastDeploy);
+
+            if (dt && !isNaN(dt)) {
+                const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                return `Last site deploy: ${formatLocal(dt)} (${tz}) [commit ${commit}]`;
+            }
+            // Fallback: show raw value if parsing failed
+            return `Last site deploy: ${window.lastDeploy} [commit ${commit}]`;
         }
         return "Last site deploy: not configured (missing deploy-info.js)";
     }

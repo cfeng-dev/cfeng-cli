@@ -240,12 +240,3 @@ class Shell {
         $(".input").focus();
     }
 }
-
-// --- Display deployment time locally ---
-document.addEventListener("DOMContentLoaded", () => {
-    const deployEl = document.getElementById("deploy-time");
-    if (deployEl && window.lastDeploy) {
-        const utc = new Date(window.lastDeploy.replace(" UTC", "Z"));
-        deployEl.textContent = utc.toLocaleString(); // Local time
-    }
-});
