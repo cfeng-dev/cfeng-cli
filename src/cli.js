@@ -178,13 +178,6 @@ commands.date = () => {
 };
 
 // ---------- last reboot command (deploy timestamp) ----------
-
-// // Simple date formatter (kept in case you need it elsewhere)
-// function formatDate(d) {
-//     const pad = (n) => String(n).padStart(2, "0");
-//     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-// }
-
 // Format a Date in the user's local timezone
 function formatLocal(dt) {
     const opts = {
@@ -231,6 +224,50 @@ commands.last = (arg) => {
     }
     return "Usage: last reboot";
 };
+
+// ---------- tree (directory tree) ----------
+(function () {
+    const isDir = (name) => Object.prototype.hasOwnProperty.call(struct, name);
+
+    function buildTreeLines(dir, prefix = "") {
+        const entries = (struct[dir] || []).slice(); // array of names (dirs or files without .txt)
+        const lastIdx = entries.length - 1;
+        const lines = [];
+
+        entries.forEach((name, idx) => {
+            const isLast = idx === lastIdx;
+            const branch = isLast ? "└── " : "├── ";
+            const nextPrefix = prefix + (isLast ? "    " : "│   ");
+
+            if (isDir(name)) {
+                // directory
+                lines.push(`${prefix}${branch}<span class="dir">${name}/</span>`);
+                // Recursively further
+                lines.push(...buildTreeLines(name, nextPrefix));
+            } else {
+                // File (show .txt)
+                lines.push(`${prefix}${branch}<span class="file">${name}.txt</span>`);
+            }
+        });
+
+        return lines;
+    }
+
+    function renderTree(start = "root") {
+        if (!isDir(start)) return errors.invalidDirectory;
+        const lines = buildTreeLines(start);
+        // Header: . or path
+        const header = start === "root" ? "." : `./${start}`;
+        return `<pre class="tree">${header}\n${lines.join("\n")}</pre>`;
+    }
+
+    commands.tree = (arg) => {
+        const d = (arg || "").trim();
+        if (!d || d === "." || d === "~") return renderTree("root");
+        if (!isDir(d)) return errors.invalidDirectory;
+        return renderTree(d);
+    };
+})();
 
 // ---------- Bootstrap / Init ----------
 $(() => {
