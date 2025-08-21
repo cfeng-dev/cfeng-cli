@@ -1,242 +1,199 @@
 /* global $, localStorage */
 
-// Put caret (text cursor) at the end of a contenteditable element
-function setCaretToEnd(el) {
-    // Safety: if element is not found, skip
-    if (!el) return;
-    el.focus();
-    const range = document.createRange();
-    range.selectNodeContents(el);
-    range.collapse(false); // move to end
-    const sel = window.getSelection();
-    sel.removeAllRanges();
-    sel.addRange(range);
+// Helper: set caret to the end of an <input>
+function setCaretToEndInput(inputEl) {
+    if (!inputEl) return;
+    const len = inputEl.value.length;
+    inputEl.focus();
+    try {
+        inputEl.setSelectionRange(len, len);
+    } catch (_) {}
 }
 
 class Shell {
     constructor(term, commands) {
-        // Store dependencies
         this.commands = commands;
         this.term = term;
 
-        // Initialize state in localStorage
-        // Use array for history; flags as string for consistency with comparisons
+        // Initialize local storage state
         localStorage.directory = "root";
         localStorage.history = JSON.stringify([]);
         localStorage.historyIndex = -1;
         localStorage.inHistory = "false";
-        localStorage.goingThroughHistory = "false";
 
-        // Wire up DOM event listeners
         this.setupListeners(term);
 
-        // Focus input on boot
-        $(".input").focus();
+        // Focus on the last input at startup
+        $(".cli-input").last().trigger("focus");
     }
 
     setupListeners(term) {
-        // Keep focus in the last input when clicking terminal area
-        $("#terminal").on("mouseup", () => $(".input").last().focus());
+        // Click inside terminal => focus on last input
+        $("#terminal").on("mouseup", () => $(".cli-input").last().trigger("focus"));
 
-        // Handle Up/Down for history navigation
-        term.addEventListener("keyup", (evt) => {
-            const keyUp = 38;
-            const keyDown = 40;
-            const key = evt.keyCode;
+        // ↑ / ↓ = history navigation
+        term.addEventListener("keydown", (evt) => {
+            const keyUp = 38,
+                keyDown = 40;
+            if (evt.keyCode !== keyUp && evt.keyCode !== keyDown) return;
 
-            if (key === keyUp || key === keyDown) {
-                let history = localStorage.history ? JSON.parse(localStorage.history) : [];
+            const $inp = $(".cli-input").last();
+            const inp = $inp.get(0);
+            let history = localStorage.history ? JSON.parse(localStorage.history) : [];
+            if (!history.length) return;
 
-                if (key === keyUp) {
-                    // Navigate backward through history
-                    const history = localStorage.history ? JSON.parse(localStorage.history) : [];
-                    if (!history.length) return;
-
-                    // If not currently traversing: enter history at the "end" (one past the last)
-                    if (localStorage.inHistory === "false") {
-                        localStorage.inHistory = "true";
-                        localStorage.historyIndex = String(history.length - 1); // show last entry first
-                    } else {
-                        // Already traversing: move one step back if possible
-                        const idxNow = Number(localStorage.historyIndex);
-                        if (idxNow > 0) {
-                            localStorage.historyIndex = String(idxNow - 1);
-                        }
-                    }
-
-                    const idx = Number(localStorage.historyIndex);
-                    const text = history[idx] ?? "";
-                    const $inp = $(".input").last();
-                    $inp.text(text);
-                    setCaretToEnd($inp.get(0));
-                } else if (key === keyDown) {
-                    // Navigate forward through history
-                    if (localStorage.inHistory === "true") {
-                        const history = localStorage.history ? JSON.parse(localStorage.history) : [];
-                        let idx = Number(localStorage.historyIndex);
-
-                        // If we are at the newest entry: clear input and LEAVE history (end state)
-                        if (idx >= history.length - 1) {
-                            const $inp = $(".input").last();
-                            $inp.text("");
-                            setCaretToEnd($inp.get(0));
-                            localStorage.inHistory = "false";
-                            localStorage.historyIndex = String(history.length); // one past the last
-                            return;
-                        }
-
-                        // Otherwise go one step forward
-                        idx += 1;
-                        localStorage.historyIndex = String(idx);
-
-                        const text = history[idx] ?? "";
-                        const $inp = $(".input").last();
-                        $inp.text(text);
-                        setCaretToEnd($inp.get(0));
-                    }
+            if (evt.keyCode === keyUp) {
+                // Move up in history
+                if (localStorage.inHistory === "false") {
+                    localStorage.inHistory = "true";
+                    localStorage.historyIndex = String(history.length - 1);
+                } else {
+                    const idxNow = Number(localStorage.historyIndex);
+                    if (idxNow > 0) localStorage.historyIndex = String(idxNow - 1);
                 }
-
-                // Prevent default arrow scrolling inside contenteditable
-                evt.preventDefault();
+            } else if (evt.keyCode === keyDown) {
+                // Move down in history
+                if (localStorage.inHistory === "true") {
+                    let idx = Number(localStorage.historyIndex);
+                    if (idx >= history.length - 1) {
+                        $inp.val("");
+                        localStorage.inHistory = "false";
+                        localStorage.historyIndex = String(history.length);
+                        setCaretToEndInput(inp);
+                        evt.preventDefault();
+                        return;
+                    }
+                    localStorage.historyIndex = String(idx + 1);
+                }
             }
+
+            const idx = Number(localStorage.historyIndex);
+            $inp.val(history[idx] ?? "");
+            setCaretToEndInput(inp);
+            evt.preventDefault();
         });
 
-        // Handle special keys: Tab, Esc, Backspace/Delete, Ctrl+U, Ctrl+K
+        // Special keys: Tab / Esc / Backspace / Delete / Ctrl+U / Ctrl+K
         term.addEventListener("keydown", (evt) => {
-            // 9: Tab, 27: Esc, 8: Backspace, 46: Delete
             if (evt.keyCode === 9) {
-                // Prevent focus jump on Tab
+                // Tab = prevent default browser behavior
                 evt.preventDefault();
             } else if (evt.keyCode === 27) {
-                // Toggle fullscreen on Esc
+                // Esc = toggle fullscreen mode
                 $(".terminal-window").toggleClass("fullscreen");
             } else if (evt.keyCode === 8 || evt.keyCode === 46) {
-                // Reset history pointer when editing
+                // Backspace / Delete = reset history index
                 this.resetHistoryIndex();
             }
 
-            // Ctrl+U (clear line before cursor)
+            // Ctrl+U: delete everything before cursor
             if (evt.ctrlKey && evt.key.toLowerCase() === "u") {
                 evt.preventDefault();
-                const $inp = $(".input").last();
-                const sel = window.getSelection();
-                const range = sel.getRangeAt(0);
-                const cursorPos = range.startOffset;
-
-                const text = $inp.text();
-                // Remove everything before cursor
-                $inp.text(text.slice(cursorPos));
-
-                // Move caret to beginning
-                const node = $inp.get(0).firstChild || $inp.get(0);
-                sel.collapse(node, 0);
+                const inp = $(".cli-input").last().get(0);
+                const pos = inp.selectionStart ?? 0;
+                const v = inp.value;
+                inp.value = v.slice(pos);
+                setCaretToEndInput(inp); // move to beginning
             }
 
-            // Ctrl+K (clear line after cursor)
+            // Ctrl+K: delete everything after cursor
             if (evt.ctrlKey && evt.key.toLowerCase() === "k") {
                 evt.preventDefault();
-                const $inp = $(".input").last();
-                const sel = window.getSelection();
-                const range = sel.getRangeAt(0);
-                const cursorPos = range.startOffset;
-
-                const text = $inp.text();
-                // Remove everything after cursor
-                $inp.text(text.slice(0, cursorPos));
-
-                // Move caret to end
-                const node = $inp.get(0).firstChild || $inp.get(0);
-                sel.collapse(node, cursorPos);
+                const inp = $(".cli-input").last().get(0);
+                const pos = inp.selectionStart ?? 0;
+                const v = inp.value;
+                inp.value = v.slice(0, pos);
+                setCaretToEndInput(inp);
             }
         });
 
-        // Handle Enter for command execution
-        term.addEventListener("keypress", (evt) => {
-            // Skip for control keys in Firefox (arrow/tab)
-            if (![9, 27, 37, 38, 39, 40].includes(evt.keyCode)) {
-                // Any printable input resets history traversal state
-                this.resetHistoryIndex();
-            }
+        // Enter = execute command
+        term.addEventListener("keydown", (evt) => {
+            if (evt.key !== "Enter") return;
+            evt.preventDefault();
 
-            if (evt.keyCode === 13) {
-                const prompt = evt.target;
-                // Split into command + arg (single-arg model; simple and matches current handlers)
-                const parts = prompt.textContent.trim().split(/\s+/);
-                const cmd = (parts[0] || "").toLowerCase();
-                const arg = parts.slice(1).join(" ").trim(); // allow multi-word args if needed later
+            const inputEl = document.activeElement?.classList?.contains("cli-input") ? document.activeElement : $(".cli-input").last().get(0);
+            if (!inputEl) return;
 
-                if (cmd === "clear") {
-                    this.updateHistory(cmd);
-                    this.clearConsole();
-                } else if (cmd && Object.prototype.hasOwnProperty.call(this.commands, cmd)) {
-                    this.runCommand(cmd, arg);
-                    this.resetPrompt(term, prompt);
-                    $(".root").last().text(localStorage.directory);
-                } else {
-                    this.term.innerHTML += "Error: command not recognized";
-                    this.resetPrompt(term, prompt);
-                }
-                evt.preventDefault();
+            const parts = inputEl.value.trim().split(/\s+/);
+            const cmd = (parts[0] || "").toLowerCase();
+            const arg = parts.slice(1).join(" ").trim();
+
+            if (cmd === "clear") {
+                this.updateHistory(cmd);
+                this.clearConsole();
+            } else if (cmd && Object.prototype.hasOwnProperty.call(this.commands, cmd)) {
+                this.runCommand(cmd, arg);
+                this.resetPrompt(term, inputEl); // <— wichtig: altes Input übergeben
+                $(".root").last().text(localStorage.directory);
+            } else if (cmd) {
+                const errEl = document.createElement("p");
+                errEl.textContent = "Error: command not recognized";
+                this.term.appendChild(errEl);
+
+                this.resetPrompt(term, inputEl);
             }
         });
     }
 
     runCommand(cmd, args) {
-        // Store the executed command in history
         const command = args ? `${cmd} ${args}` : cmd;
         this.updateHistory(command);
 
-        // Execute and render output if any
         const output = this.commands[cmd](args);
         if (output) {
-            this.term.innerHTML += output;
+            const outEl = document.createElement("div");
+            outEl.className = "command-output";
+            outEl.innerHTML = typeof output === "string" ? output : `<p>${String(output)}</p>`;
+            this.term.appendChild(outEl);
         }
     }
 
-    resetPrompt(term, prompt) {
-        // Clone the current prompt block and freeze the previous input
-        const newPrompt = prompt.parentNode.cloneNode(true);
-        prompt.setAttribute("contenteditable", false);
+    resetPrompt(term, oldInput) {
+        oldInput.readOnly = true; // keeps visible but not editable
+        oldInput.blur();
 
-        if (this.prompt) {
-            // Allow overriding the prompt label if needed
-            newPrompt.querySelector(".prompt").textContent = this.prompt;
-        }
+        const dir = localStorage.directory;
+        const newLine = document.createElement("p");
+        newLine.className = "prompt-line";
+        newLine.innerHTML = `
+            <span class="prompt">
+                <span class="root">${dir}</span>
+                <span class="tick">❯</span>
+            </span>
+            <input class="cli-input command_input" type="text" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off">`;
+        term.appendChild(newLine);
 
-        term.appendChild(newPrompt);
-        const input = newPrompt.querySelector(".input");
-        input.innerHTML = "";
-        input.focus();
+        const newInput = newLine.querySelector(".cli-input");
+        newInput.value = "";
+        newInput.focus();
     }
 
     resetHistoryIndex() {
-        // Reset pointer to "end" (outside history)
         const history = localStorage.history ? JSON.parse(localStorage.history) : [];
         localStorage.inHistory = "false";
-        localStorage.historyIndex = String(history.length); // one past the last
+        localStorage.historyIndex = String(history.length);
     }
 
     updateHistory(command) {
-        // Append and reset pointer to "end" (outside history)
         let history = localStorage.history ? JSON.parse(localStorage.history) : [];
         history.push(command);
         localStorage.history = JSON.stringify(history);
         localStorage.inHistory = "false";
-        localStorage.historyIndex = String(history.length); // one past the last
+        localStorage.historyIndex = String(history.length);
     }
 
     clearConsole() {
-        // Reset the terminal output to a fresh prompt while keeping the current directory
         const dir = localStorage.directory;
         $("#terminal").html(
-            `<p class="hidden">
-        <span class="prompt">
-          <span class="root">${dir}</span>
-          <span class="tick">$</span>
-        </span>
-        <span contenteditable="true" class="input" spellcheck="false"></span>
-      </p>`
+            `<p class="prompt-line">
+                <span class="prompt">
+                    <span class="root">${dir}</span>
+                    <span class="tick">❯</span>
+                </span>
+                <input class="cli-input command_input" type="text" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off">
+            </p>`
         );
-        $(".input").focus();
+        $(".cli-input").last().trigger("focus");
     }
 }

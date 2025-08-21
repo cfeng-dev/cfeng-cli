@@ -21,12 +21,13 @@
         </header>
         <div id="terminal">
             <p><span class="green">\[._.]/</span> - you're in cfeng's cli! type `help` to get started.</p>
-            <p class="hidden">
+
+            <p class="prompt-line">
                 <span class="prompt">
                     <span class="root">root</span>
                     <span class="tick">❯</span>
                 </span>
-                <span contenteditable="true" class="input" spellcheck="false"></span>
+                <input class="cli-input command_input" type="text" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" />
             </p>
         </div>
     </div>
@@ -36,6 +37,22 @@
     <script>
         document.addEventListener("DOMContentLoaded", function () {
             document.getElementById("year").textContent = new Date().getFullYear();
+        });
+    </script>
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const line = document.querySelector(".prompt-line");
+            const input = document.getElementById("cli-input");
+
+            line.addEventListener(
+                "pointerdown",
+                () => {
+                    input.focus();
+                    const v = input.value;
+                    input.setSelectionRange(v.length, v.length);
+                },
+                { passive: true }
+            );
         });
     </script>
 </body>
