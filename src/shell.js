@@ -49,15 +49,12 @@ class Shell {
 
                 if (key === keyUp) {
                     // Navigate backward through history
-                    if (localStorage.historyIndex >= 0) {
+                    if (history.length > 0) {
                         if (localStorage.inHistory === "false") {
                             localStorage.inHistory = "true";
                         }
-                        // Prevent repetition of the very last command when starting traversal
-                        if (Number(localStorage.historyIndex) === history.length - 1 && history.length !== 1) {
-                            localStorage.historyIndex = String(Number(localStorage.historyIndex) - 1);
-                        }
-                        const idx = Number(localStorage.historyIndex);
+
+                        let idx = Number(localStorage.historyIndex);
                         const text = history[idx] ?? "";
 
                         // Insert text and move caret to end
@@ -65,7 +62,7 @@ class Shell {
                         $inp.text(text);
                         setCaretToEnd($inp.get(0));
 
-                        if (idx !== 0) {
+                        if (idx > 0) {
                             localStorage.historyIndex = String(idx - 1);
                         }
                     }
