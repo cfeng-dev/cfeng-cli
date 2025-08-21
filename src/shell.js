@@ -49,43 +49,47 @@ class Shell {
 
                 if (key === keyUp) {
                     // Navigate backward through history
-                    if (history.length > 0) {
-                        if (localStorage.inHistory === "false") {
-                            localStorage.inHistory = "true";
-                        }
+                    const history = localStorage.history ? JSON.parse(localStorage.history) : [];
+                    if (!history.length) return;
 
-                        let idx = Number(localStorage.historyIndex);
-                        const text = history[idx] ?? "";
-
-                        // Insert text and move caret to end
-                        const $inp = $(".input").last();
-                        $inp.text(text);
-                        setCaretToEnd($inp.get(0));
-
-                        if (idx > 0) {
-                            localStorage.historyIndex = String(idx - 1);
+                    // If not currently traversing: enter history at the "end" (one past the last)
+                    if (localStorage.inHistory === "false") {
+                        localStorage.inHistory = "true";
+                        localStorage.historyIndex = String(history.length - 1); // show last entry first
+                    } else {
+                        // Already traversing: move one step back if possible
+                        const idxNow = Number(localStorage.historyIndex);
+                        if (idxNow > 0) {
+                            localStorage.historyIndex = String(idxNow - 1);
                         }
                     }
+
+                    const idx = Number(localStorage.historyIndex);
+                    const text = history[idx] ?? "";
+                    const $inp = $(".input").last();
+                    $inp.text(text);
+                    setCaretToEnd($inp.get(0));
                 } else if (key === keyDown) {
                     // Navigate forward through history
                     if (localStorage.inHistory === "true") {
-                        let history = localStorage.history ? JSON.parse(localStorage.history) : [];
+                        const history = localStorage.history ? JSON.parse(localStorage.history) : [];
                         let idx = Number(localStorage.historyIndex);
 
-                        // When we are at the end of the history → show empty input
+                        // If we are at the newest entry: clear input and LEAVE history (end state)
                         if (idx >= history.length - 1) {
                             const $inp = $(".input").last();
-                            $inp.text(""); // clear input
+                            $inp.text("");
                             setCaretToEnd($inp.get(0));
-                            localStorage.historyIndex = String(history.length);
+                            localStorage.inHistory = "false";
+                            localStorage.historyIndex = String(history.length); // one past the last
                             return;
                         }
 
-                        // Otherwise, continue normally
+                        // Otherwise go one step forward
                         idx += 1;
                         localStorage.historyIndex = String(idx);
-                        const text = history[idx] ?? "";
 
+                        const text = history[idx] ?? "";
                         const $inp = $(".input").last();
                         $inp.text(text);
                         setCaretToEnd($inp.get(0));
@@ -206,20 +210,19 @@ class Shell {
     }
 
     resetHistoryIndex() {
-        // Reset the pointer to the latest command
-        let history = localStorage.history ? JSON.parse(localStorage.history) : [];
-        if (localStorage.goingThroughHistory === "true") {
-            localStorage.goingThroughHistory = "false";
-        }
-        localStorage.historyIndex = history.length ? String(history.length - 1) : String(-1);
+        // Reset pointer to "end" (outside history)
+        const history = localStorage.history ? JSON.parse(localStorage.history) : [];
+        localStorage.inHistory = "false";
+        localStorage.historyIndex = String(history.length); // one past the last
     }
 
     updateHistory(command) {
-        // Append command to history array and update index pointer
+        // Append and reset pointer to "end" (outside history)
         let history = localStorage.history ? JSON.parse(localStorage.history) : [];
         history.push(command);
         localStorage.history = JSON.stringify(history);
-        localStorage.historyIndex = String(history.length - 1);
+        localStorage.inHistory = "false";
+        localStorage.historyIndex = String(history.length); // one past the last
     }
 
     clearConsole() {
@@ -237,3 +240,12 @@ class Shell {
         $(".input").focus();
     }
 }
+
+// --- Display deployment time locally ---
+document.addEventListener("DOMContentLoaded", () => {
+    const deployEl = document.getElementById("deploy-time");
+    if (deployEl && window.lastDeploy) {
+        const utc = new Date(window.lastDeploy.replace(" UTC", "Z"));
+        deployEl.textContent = utc.toLocaleString(); // Local time
+    }
+});
