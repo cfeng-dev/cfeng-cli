@@ -69,20 +69,32 @@ commands.ls = (directory) => {
 commands.help = () => systemData.help;
 
 // Print current path
-commands.path = () => {
+commands.pwd = () => {
     const dir = getDirectory();
     return dir === "root" ? rootPath : `${rootPath}/${dir}`;
 };
 
-// Alias for path
-commands.pwd = () => commands.path();
+// Show current user
+commands.whoami = () => {
+    const variants = ["guest (who actually knows how to use Linux 👀)", "guest - surprisingly good at Linux", "guest@cfeng-cli  # knows more Linux than expected"];
 
-// Show command history
+    // Randomly return a variant
+    const i = Math.floor(Math.random() * variants.length);
+    return variants[i];
+};
+
+// Show hostname
+commands.hostname = () => {
+    return "Chin-I-Feng"; // adjust as you like
+};
+
+// Show command history with padded line numbers
 commands.history = () => {
-    // Render history as a simple list
     let history = localStorage.history;
     history = history ? JSON.parse(history) : [];
-    return `<p>${history.map((h) => String(h)).join("<br>")}</p>`;
+    const width = String(history.length).length;
+
+    return `<pre>${history.map((h, i) => String(i + 1).padStart(width, " ") + "  " + h).join("\n")}</pre>`;
 };
 
 // Change directory
@@ -150,13 +162,28 @@ commands.cat = (filename) => {
     return errors.fileNotFound;
 };
 
+// show the current date and time
+commands.date = () => {
+    const now = new Date();
+    return now.toLocaleString("en-GB", {
+        weekday: "short",
+        year: "numeric",
+        month: "short",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        timeZoneName: "short",
+    });
+};
+
 // ---------- last reboot command (deploy timestamp) ----------
 
-// Simple date formatter (kept in case you need it elsewhere)
-function formatDate(d) {
-    const pad = (n) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
+// // Simple date formatter (kept in case you need it elsewhere)
+// function formatDate(d) {
+//     const pad = (n) => String(n).padStart(2, "0");
+//     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+// }
 
 // Format a Date in the user's local timezone
 function formatLocal(dt) {
@@ -183,6 +210,7 @@ function parseDeployUtcString(s) {
     return new Date(Date.UTC(y, mo - 1, d, h, mi, se));
 }
 
+// show the date of the last site deployment
 commands.last = (arg) => {
     // Supports "last reboot"
     if (arg && arg.toLowerCase() === "reboot") {
