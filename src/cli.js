@@ -12,8 +12,8 @@ const errors = {
 
 // ---------- Virtual structure (directories & groupings) ----------
 const struct = {
-    root: ["about", "resume", "contact", "talks", "skills"],
-    skills: ["proficient", "familiar"],
+    root: ["about", "contact", "skills"],
+    skills: ["programming", "software", "hardware", "iot", "language"],
 };
 
 // ---------- Commands registry ----------
@@ -137,7 +137,7 @@ commands.cat = (filename) => {
         return errors.fileNotFound;
     }
 
-    // Case 2: file in subdirectory (e.g., "skills/proficient.txt")
+    // Case 2: file in subdirectory (e.g., "skills/programming.txt")
     if (isPathLike(filename)) {
         if (!hasExt(filename, ".txt")) return errors.noSuchFileOrDirectory;
 
@@ -246,26 +246,28 @@ $(() => {
     const pages = [
         $.get("pages/about.html"),
         $.get("pages/contact.html"),
-        $.get("pages/familiar.html"),
         $.get("pages/help.html"),
-        $.get("pages/proficient.html"),
-        $.get("pages/resume.html"),
         $.get("pages/root.html"),
         $.get("pages/skills.html"),
-        $.get("pages/talks.html"),
+        $.get("pages/programming.html"),
+        $.get("pages/software.html"),
+        $.get("pages/hardware.html"),
+        $.get("pages/iot.html"),
+        $.get("pages/language.html"),
     ];
 
-    $.when.apply($, pages).done((aboutData, contactData, familiarData, helpData, proficientData, resumeData, rootData, skillsData, talksData) => {
+    $.when.apply($, pages).done((aboutData, contactData, helpData, rootData, skillsData, programmingData, softwareData, hardwareData, iotData, languageData) => {
         // Map loaded fragments into systemData
         systemData["about"] = aboutData[0];
         systemData["contact"] = contactData[0];
-        systemData["familiar"] = familiarData[0];
         systemData["help"] = helpData[0];
-        systemData["proficient"] = proficientData[0];
-        systemData["resume"] = resumeData[0];
         systemData["root"] = rootData[0];
         systemData["skills"] = skillsData[0];
-        systemData["talks"] = talksData[0];
+        systemData["programming"] = programmingData[0];
+        systemData["software"] = softwareData[0];
+        systemData["hardware"] = hardwareData[0];
+        systemData["iot"] = iotData[0];
+        systemData["language"] = languageData[0];
     });
 
     // Initialize terminal shell
