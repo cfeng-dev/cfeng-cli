@@ -225,12 +225,12 @@ commands.last = (arg) => {
     return "Usage: last reboot";
 };
 
-// ---------- tree (directory tree) ----------
+// ---------- tree (directory tree with counts) ----------
 (function () {
     const isDir = (name) => Object.prototype.hasOwnProperty.call(struct, name);
 
-    function buildTreeLines(dir, prefix = "") {
-        const entries = (struct[dir] || []).slice(); // array of names (dirs or files without .txt)
+    function buildTreeLines(dir, prefix = "", counts) {
+        const entries = (struct[dir] || []).slice();
         const lastIdx = entries.length - 1;
         const lines = [];
 
@@ -240,12 +240,12 @@ commands.last = (arg) => {
             const nextPrefix = prefix + (isLast ? "    " : "│   ");
 
             if (isDir(name)) {
-                // directory
+                counts.dirs += 1;
                 lines.push(`${prefix}${branch}<span class="dir">${name}/</span>`);
-                // Recursively further
-                lines.push(...buildTreeLines(name, nextPrefix));
+                const childLines = buildTreeLines(name, nextPrefix, counts);
+                lines.push(...childLines);
             } else {
-                // File (show .txt)
+                counts.files += 1;
                 lines.push(`${prefix}${branch}<span class="file">${name}.txt</span>`);
             }
         });
@@ -255,10 +255,16 @@ commands.last = (arg) => {
 
     function renderTree(start = "root") {
         if (!isDir(start)) return errors.invalidDirectory;
-        const lines = buildTreeLines(start);
-        // Header: . or path
+
+        const counts = { dirs: 0, files: 0 };
+        const lines = buildTreeLines(start, "", counts);
         const header = start === "root" ? "." : `./${start}`;
-        return `<pre class="tree">${header}\n${lines.join("\n")}</pre>`;
+        const dirLbl = counts.dirs === 1 ? "directory" : "directories";
+        const fileLbl = counts.files === 1 ? "file" : "files";
+        const body = lines.length ? `\n${lines.join("\n")}\n\n` : `\n\n`;
+        const summary = `${counts.dirs} ${dirLbl}, ${counts.files} ${fileLbl}`;
+
+        return `<pre class="tree">${header}${body}${summary}</pre>`;
     }
 
     commands.tree = (arg) => {
