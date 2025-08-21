@@ -68,23 +68,26 @@ class Shell {
                     }
                 } else if (key === keyDown) {
                     // Navigate forward through history
-                    if (localStorage.inHistory === "true" && Number(localStorage.historyIndex) < history.length) {
-                        let ret = "";
+                    if (localStorage.inHistory === "true") {
+                        let history = localStorage.history ? JSON.parse(localStorage.history) : [];
                         let idx = Number(localStorage.historyIndex);
 
-                        if (idx > 0) {
-                            ret = history[idx];
-                            if (idx !== history.length - 1) {
-                                localStorage.historyIndex = String(idx + 1);
-                            }
-                        } else if (idx === 0 && history.length > 1) {
-                            ret = history[1];
-                            localStorage.historyIndex = String(history.length !== 2 ? 2 : 1);
+                        // When we are at the end of the history → show empty input
+                        if (idx >= history.length - 1) {
+                            const $inp = $(".input").last();
+                            $inp.text(""); // clear input
+                            setCaretToEnd($inp.get(0));
+                            localStorage.historyIndex = String(history.length);
+                            return;
                         }
 
-                        // Insert text and move caret to end
+                        // Otherwise, continue normally
+                        idx += 1;
+                        localStorage.historyIndex = String(idx);
+                        const text = history[idx] ?? "";
+
                         const $inp = $(".input").last();
-                        $inp.text(ret || "");
+                        $inp.text(text);
                         setCaretToEnd($inp.get(0));
                     }
                 }
