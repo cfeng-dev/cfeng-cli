@@ -12,7 +12,8 @@ const errors = {
 
 // ---------- Virtual structure (directories & groupings) ----------
 const struct = {
-    root: ["about", "contact", "skills"],
+    root: ["about", "contact", "hobbies", "skills"],
+    hobbies: ["sport", "cook", "travel", "movie", "gaming"],
     skills: ["programming", "software", "hardware", "iot", "language"],
 };
 
@@ -282,6 +283,9 @@ $(() => {
 
     const cmd = document.getElementById("terminal");
 
+    // Set default directory (if not already set)
+    if (!getDirectory()) setDirectory("root");
+
     // Disable AJAX cache to always fetch fresh pages
     $.ajaxSetup({ cache: false });
 
@@ -297,22 +301,55 @@ $(() => {
         $.get("pages/hardware.html"),
         $.get("pages/iot.html"),
         $.get("pages/language.html"),
+        $.get("pages/hobbies.html"),
+        $.get("pages/sport.html"),
+        $.get("pages/cook.html"),
+        $.get("pages/travel.html"),
+        $.get("pages/movie.html"),
+        $.get("pages/gaming.html"),
     ];
 
-    $.when.apply($, pages).done((aboutData, contactData, helpData, rootData, skillsData, programmingData, softwareData, hardwareData, iotData, languageData) => {
-        // Map loaded fragments into systemData
-        systemData["about"] = aboutData[0];
-        systemData["contact"] = contactData[0];
-        systemData["help"] = helpData[0];
-        systemData["root"] = rootData[0];
-        systemData["skills"] = skillsData[0];
-        systemData["programming"] = programmingData[0];
-        systemData["software"] = softwareData[0];
-        systemData["hardware"] = hardwareData[0];
-        systemData["iot"] = iotData[0];
-        systemData["language"] = languageData[0];
-    });
+    $.when
+        .apply($, pages)
+        .done(
+            (
+                aboutData,
+                contactData,
+                helpData,
+                rootData,
+                skillsData,
+                programmingData,
+                softwareData,
+                hardwareData,
+                iotData,
+                languageData,
+                hobbiesData,
+                sportData,
+                cookData,
+                travelData,
+                movieData,
+                gamingData
+            ) => {
+                systemData.about = aboutData[0];
+                systemData.contact = contactData[0];
+                systemData.help = helpData[0];
+                systemData.root = rootData[0];
+                systemData.skills = skillsData[0];
+                systemData.programming = programmingData[0];
+                systemData.software = softwareData[0];
+                systemData.hardware = hardwareData[0];
+                systemData.iot = iotData[0];
+                systemData.language = languageData[0];
 
-    // Initialize terminal shell
-    const terminal = new Shell(cmd, commands);
+                systemData.hobbies = hobbiesData[0];
+                systemData.sport = sportData[0];
+                systemData.cook = cookData[0];
+                systemData.travel = travelData[0];
+                systemData.movie = movieData[0];
+                systemData.gaming = gamingData[0];
+
+                // Start terminal after everything is mapped
+                const terminal = new Shell(cmd, commands);
+            }
+        );
 });
