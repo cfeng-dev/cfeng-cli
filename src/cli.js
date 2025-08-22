@@ -119,48 +119,38 @@ commands.cd = (newDirectory) => {
 
 // Read file contents
 commands.cat = (filename) => {
-    // Display text file contents by logical key
     if (!filename) return errors.fileNotSpecified;
 
     const isDirectory = (name) => Object.prototype.hasOwnProperty.call(struct, name);
     const hasExt = (name, ext) => name.toLowerCase().endsWith(ext);
     const isPathLike = (name) => name.includes("/");
+    const currDir = getDirectory() || "root";
 
     if (isDirectory(filename)) return errors.invalidFile;
 
-    // Case 1: file in current/root by logical key (e.g., "about.txt")
+    // --- Case A: relative in the current directory ---
     if (!isPathLike(filename)) {
         if (!hasExt(filename, ".txt")) return errors.invalidFile;
-        const key = filename.split(".")[0]; // "about"
-        if (Object.prototype.hasOwnProperty.call(systemData, key)) {
-            return systemData[key];
-        }
-        return errors.fileNotFound;
+        const key = filename.slice(0, -4); // ohne .txt
+        const entries = struct[currDir] || [];
+        if (!entries.includes(key)) return errors.noSuchFileOrDirectory; // nicht in diesem Dir
+        return key in systemData ? systemData[key] : errors.fileNotFound;
     }
 
-    // Case 2: file in subdirectory (e.g., "skills/programming.txt")
-    if (isPathLike(filename)) {
-        if (!hasExt(filename, ".txt")) return errors.noSuchFileOrDirectory;
+    // --- Case B: Path like "skills/iot.txt" ---
+    let [dir, ...rest] = filename.split("/");
+    let base = rest.join("/");
+    if (!hasExt(base, ".txt")) return errors.noSuchFileOrDirectory;
 
-        const parts = filename.split("/");
-        const directory = parts[0];
-        const fileKey = parts.slice(1).join("/").split(".")[0]; // supports nested, though we use 1-level
+    // simple path normalization for ./ and .. (one level)
+    if (dir === ".") dir = currDir;
+    if (dir === "..") dir = "root";
 
-        if (directory === "root" || !Object.prototype.hasOwnProperty.call(struct, directory)) {
-            return errors.noSuchFileOrDirectory;
-        }
-        // Ensure file is declared in struct mapping
-        if (!struct[directory].includes(fileKey)) {
-            return errors.noSuchFileOrDirectory;
-        }
-        // Return content if present
-        if (Object.prototype.hasOwnProperty.call(systemData, fileKey)) {
-            return systemData[fileKey];
-        }
-        return errors.fileNotFound;
-    }
+    if (!isDirectory(dir)) return errors.noSuchFileOrDirectory;
 
-    return errors.fileNotFound;
+    const fileKey = base.slice(0, -4);
+    if (!(struct[dir] || []).includes(fileKey)) return errors.noSuchFileOrDirectory;
+    return fileKey in systemData ? systemData[fileKey] : errors.fileNotFound;
 };
 
 // show the current date and time
