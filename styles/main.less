@@ -50,7 +50,7 @@ body {
 
         .button.yellow {
             background: #e5c30f;
-            cursor: pointer;
+            // cursor: pointer;
         }
 
         .button.red {
@@ -138,6 +138,10 @@ body {
     min-width: 1px;
     caret-color: #66aaff; /* optional */
     font-size: 16px;
+    width: 80%; /* fill terminal width */
+    white-space: nowrap; /* keep on one line */
+    overflow-x: auto; /* allow scrolling when too long */
+    box-sizing: border-box;
 }
 
 .footer {
