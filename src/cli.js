@@ -296,6 +296,19 @@ commands.last = (arg) => {
     const isDir = (name) => Object.prototype.hasOwnProperty.call(struct, name);
     const hasExt = (name, ext) => name.toLowerCase().endsWith(ext);
     const uniq = (arr) => Array.from(new Set(arr));
+    const ARG_HINTS = {
+        last: ["reboot"], // arguments for the `last` command
+        help: () => Object.keys(commands), // example: list all commands for `help`
+    };
+
+    // Helper: normalize source (array or function) into a candidate list
+    function argCandidatesFor(cmd, prefix) {
+        const src = ARG_HINTS[cmd];
+        if (!src) return [];
+        const list = typeof src === "function" ? src(prefix) : src;
+        const p = (prefix || "").toLowerCase();
+        return list.filter((x) => x.toLowerCase().startsWith(p));
+    }
 
     // Collect candidates depending on context
     function candidatesFor(token, contextCmd) {
@@ -410,15 +423,27 @@ commands.last = (arg) => {
             cands = commandCandidates(token);
         } else {
             const normalizedCmd = cmd.trim().toLowerCase();
-            const mode = normalizedCmd === "cat" ? "cat" : ["cd", "ls", "tree"].includes(normalizedCmd) ? "dir" : "generic";
-            if (mode === "generic") {
-                const asDir = candidatesFor(token, "dir");
-                const asFile = hasExt(token, ".txt") ? candidatesFor(token, "cat") : [];
-                cands = uniq([...asDir, ...asFile]);
-            } else if (mode === "cat") {
-                cands = candidatesFor(token, "cat");
+
+            // 1) Check for command-specific argument completions first
+            const special = argCandidatesFor(normalizedCmd, token);
+            if (special.length) {
+                cands = special;
             } else {
-                cands = candidatesFor(token, "dir");
+                // 2) Fallback to the existing modes (cat / dir / generic)
+                const mode = normalizedCmd === "cat" ? "cat" : ["cd", "ls", "tree"].includes(normalizedCmd) ? "dir" : "generic";
+
+                if (mode === "cat") {
+                    // Only file candidates (*.txt) for `cat`
+                    cands = candidatesFor(token, "cat");
+                } else if (mode === "dir") {
+                    // Only directory candidates for cd/ls/tree
+                    cands = candidatesFor(token, "dir");
+                } else {
+                    // Generic mode: dirs + (optionally) files if token ends with .txt
+                    const asDir = candidatesFor(token, "dir");
+                    const asFile = hasExt(token, ".txt") ? candidatesFor(token, "cat") : [];
+                    cands = uniq([...asDir, ...asFile]);
+                }
             }
         }
 
