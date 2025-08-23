@@ -144,6 +144,32 @@ body {
     box-sizing: border-box;
 }
 
+.ls-output {
+    font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
+    white-space: pre;
+}
+
+/* Colors similar to Linux ls --color */
+.file {
+    color: #e0e0e0; /* normal files = light gray/white */
+}
+
+.dir {
+    color: #4ea5f5; /* directories = blue */
+}
+
+.exec {
+    color: #4fd84f; /* executables = green */
+}
+
+.link {
+    color: #00cccc; /* symbolic links = cyan */
+}
+
+.archive {
+    color: #ff5555; /* archives/compressed files = red */
+}
+
 .footer {
     position: absolute;
     bottom: 40px;
